@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiDelete, apiGet, apiGetWithQuery, apiPost, apiPut } from "../lib/api.js";
 import { downloadCsv, downloadPdfTable } from "../lib/purchaseExport.js";
@@ -14,6 +15,18 @@ const TABS = [
   "Locations",
   "Negative Allocation Report",
 ];
+
+/** `?tab=` slugs for deep links (e.g. from Inventory). Other Store tabs clear the param. */
+const STORE_TAB_TO_URL_SLUG = {
+  "Stock View": "stock",
+  "Stock Ledger": "ledger",
+  GRN: "grn",
+};
+const URL_SLUG_TO_STORE_TAB = {
+  stock: "Stock View",
+  ledger: "Stock Ledger",
+  grn: "GRN",
+};
 
 function NegativeBadge({ value }) {
   if (!Number.isFinite(value) || value >= 0) return null;
@@ -62,7 +75,33 @@ function fmtMoney(n) {
 
 export default function StoreModule() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState("GRN");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(() => {
+    if (typeof window === "undefined") return "GRN";
+    const slug = new URLSearchParams(window.location.search).get("tab");
+    return URL_SLUG_TO_STORE_TAB[slug] || "GRN";
+  });
+
+  function selectStoreTab(next) {
+    setTab(next);
+    setSearchParams(
+      (sp) => {
+        const n = new URLSearchParams(sp);
+        const slug = STORE_TAB_TO_URL_SLUG[next];
+        if (slug) n.set("tab", slug);
+        else n.delete("tab");
+        return n;
+      },
+      { replace: true }
+    );
+  }
+
+  useEffect(() => {
+    const slug = searchParams.get("tab");
+    if (!slug) return;
+    const mapped = URL_SLUG_TO_STORE_TAB[slug];
+    if (mapped) setTab(mapped);
+  }, [searchParams]);
   const [article, setArticle] = useState("");
   const [warehouse, setWarehouse] = useState("");
   const [location, setLocation] = useState("");
@@ -482,7 +521,7 @@ export default function StoreModule() {
           <button
             key={x}
             type="button"
-            onClick={() => setTab(x)}
+            onClick={() => selectStoreTab(x)}
             className={
               tab === x
                 ? "rounded-lg bg-slate-900 px-3 py-2 text-sm text-white"
