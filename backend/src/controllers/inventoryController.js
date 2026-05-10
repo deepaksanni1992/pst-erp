@@ -1,0 +1,253 @@
+import mongoose from "mongoose";
+import StockBalance from "../models/StockBalance.js";
+import InventoryLedger from "../models/InventoryLedger.js";
+import * as stockService from "../services/stockService.js";
+import { approvalRequiredPayload, ensureApproval } from "../services/approvalService.js";
+
+function withCompany(req, filter = {}) {
+  return { ...filter, companyId: req.companyId };
+}
+
+export async function listBalances(req, res) {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "100"), 10) || 100));
+    const skip = (page - 1) * limit;
+    const filter = withCompany(req);
+    if (req.query.warehouse) filter.warehouse = String(req.query.warehouse).trim().toUpperCase();
+    if (req.query.itemCode) {
+      filter.itemCode = new RegExp(String(req.query.itemCode).trim(), "i");
+    }
+    const [rawItems, total] = await Promise.all([
+      StockBalance.find(filter).sort({ itemCode: 1, warehouse: 1 }).skip(skip).limit(limit).lean(),
+      StockBalance.countDocuments(filter),
+    ]);
+    const items = rawItems.map((r) => {
+      const phys = Number(r.quantity) || 0;
+      const resq = Number(r.reservedQty) || 0;
+      const rts = Number(r.rtsQty) || 0;
+      const availableQty = Math.max(0, phys - resq - rts);
+      return { ...r, rtsQty: rts, availableQty };
+    });
+    res.json({ items, total, page, limit });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function getBalance(req, res) {
+  try {
+    const itemCode = String(req.params.itemCode || "").trim().toUpperCase();
+    const warehouse = String(req.query.warehouse || "MAIN").trim().toUpperCase() || "MAIN";
+    const row = await StockBalance.findOne(withCompany(req, { itemCode, warehouse })).lean();
+    if (!row) {
+      return res.json({
+        itemCode,
+        warehouse,
+        quantity: 0,
+        reservedQty: 0,
+        rtsQty: 0,
+        availableQty: 0,
+        unitCost: 0,
+        location: "",
+      });
+    }
+    const phys = Number(row.quantity) || 0;
+    const resq = Number(row.reservedQty) || 0;
+    const rts = Number(row.rtsQty) || 0;
+    res.json({
+      ...row,
+      rtsQty: rts,
+      availableQty: Math.max(0, phys - resq - rts),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function listLedger(req, res) {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "100"), 10) || 100));
+    const skip = (page - 1) * limit;
+    const filter = withCompany(req);
+    if (req.query.itemCode) {
+      filter.itemCode = String(req.query.itemCode).trim().toUpperCase();
+    }
+    if (req.query.warehouse) filter.warehouse = String(req.query.warehouse).trim().toUpperCase();
+    if (req.query.movementType) filter.movementType = req.query.movementType;
+    const [items, total] = await Promise.all([
+      InventoryLedger.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      InventoryLedger.countDocuments(filter),
+    ]);
+    res.json({ items, total, page, limit });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function postStockIn(req, res) {
+  const session = await mongoose.startSession();
+  try {
+    const { itemCode, warehouse, qty, referenceType, referenceNumber, unitCost, remarks } = req.body;
+    await session.withTransaction(async () => {
+      await stockService.grnReceive({
+        session,
+        companyId: req.companyId,
+        article: itemCode,
+        warehouse,
+        qty,
+        referenceType: referenceType || "GRN",
+        referenceNo: referenceNumber || "",
+        unitCost,
+        remarks,
+        createdBy: req.user?.email || "",
+        sourceModule: "INVENTORY",
+      });
+    });
+    const w = String(warehouse || "MAIN").trim().toUpperCase() || "MAIN";
+    const code = String(itemCode || "").trim().toUpperCase();
+    const bal = await StockBalance.findOne(withCompany(req, { itemCode: code, warehouse: w })).lean();
+    res.status(201).json(bal);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  } finally {
+    await session.endSession();
+  }
+}
+
+export async function postStockOut(req, res) {
+  const session = await mongoose.startSession();
+  try {
+    const { itemCode, warehouse, qty, referenceType, referenceNumber, remarks } = req.body;
+    await session.withTransaction(async () => {
+      await stockService.stockAdjustment({
+        session,
+        companyId: req.companyId,
+        article: itemCode,
+        warehouse,
+        qty,
+        direction: "Decrease",
+        referenceType: referenceType || "STOCK_OUT",
+        referenceNo: referenceNumber || "",
+        remarks,
+        createdBy: req.user?.email || "",
+        sourceModule: "INVENTORY",
+      });
+    });
+    const w = String(warehouse || "MAIN").trim().toUpperCase() || "MAIN";
+    const code = String(itemCode || "").trim().toUpperCase();
+    const bal = await StockBalance.findOne(withCompany(req, { itemCode: code, warehouse: w })).lean();
+    res.status(201).json(bal);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  } finally {
+    await session.endSession();
+  }
+}
+
+export async function postAdjustment(req, res) {
+  const session = await mongoose.startSession();
+  try {
+    const { itemCode, warehouse, qtyDelta, remarks } = req.body;
+    const delta = Number(qtyDelta) || 0;
+    if (!delta) return res.status(400).json({ message: "qtyDelta cannot be zero" });
+    const gate = await ensureApproval(req, {
+      companyId: req.companyId,
+      module: "STORE",
+      actionKey: "adjustment_post",
+      documentType: "STOCK_ADJUSTMENT",
+      documentNo: String(req.body?.referenceNo || itemCode || "INVENTORY_ADJUSTMENT").trim(),
+      amount: Math.abs(delta),
+      currency: "USD",
+      description: `Post inventory adjustment for ${itemCode || "item"}`,
+    });
+    if (!gate.approved) return res.status(202).json(approvalRequiredPayload(gate.request));
+    await session.withTransaction(async () => {
+      await stockService.stockAdjustment({
+        session,
+        companyId: req.companyId,
+        article: itemCode,
+        warehouse,
+        qty: Math.abs(delta),
+        direction: delta > 0 ? "Increase" : "Decrease",
+        referenceType: "STOCK_ADJUSTMENT",
+        remarks,
+        createdBy: req.user?.email || "",
+        sourceModule: "INVENTORY",
+      });
+    });
+    const w = String(warehouse || "MAIN").trim().toUpperCase() || "MAIN";
+    const code = String(itemCode || "").trim().toUpperCase();
+    const bal = await StockBalance.findOne(withCompany(req, { itemCode: code, warehouse: w })).lean();
+    res.status(201).json(bal);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  } finally {
+    await session.endSession();
+  }
+}
+
+export async function postOpening(req, res) {
+  const session = await mongoose.startSession();
+  try {
+    const { itemCode, warehouse, quantity, unitCost, remarks } = req.body;
+    const q = Number(quantity);
+    if (!Number.isFinite(q) || q < 0) {
+      return res.status(400).json({ message: "quantity must be a non-negative number" });
+    }
+    const code = String(itemCode || "").trim().toUpperCase();
+    const w = String(warehouse || "MAIN").trim().toUpperCase() || "MAIN";
+
+    const existing = await StockBalance.findOne(withCompany(req, { itemCode: code, warehouse: w }));
+    if (existing && (Number(existing.onHandQty || existing.quantity || 0) !== 0)) {
+      return res.status(400).json({ message: "Balance already exists; use adjustment instead" });
+    }
+
+    await session.withTransaction(async () => {
+      if (q > 0) {
+        await stockService.openingBalance({
+          session,
+          companyId: req.companyId,
+          article: code,
+          warehouse: w,
+          qty: q,
+          unitCost,
+          remarks: remarks || "",
+          createdBy: req.user?.email || "",
+          sourceModule: "INVENTORY",
+        });
+      } else {
+        // Zero opening — seed an empty StockBalance row without
+        // writing a ledger entry so subsequent reads find a row.
+        await StockBalance.findOneAndUpdate(
+          { companyId: req.companyId, itemCode: code, warehouse: w },
+          {
+            $setOnInsert: {
+              companyId: req.companyId,
+              itemCode: code,
+              warehouse: w,
+              article: code,
+              location: w,
+              batchNo: "",
+              serialNo: "",
+              quantity: 0,
+              onHandQty: 0,
+              allocatedQty: 0,
+              rtsQty: 0,
+              unitCost: Number(unitCost) || 0,
+            },
+          },
+          { upsert: true, new: true, session }
+        );
+      }
+    });
+
+    const bal = await StockBalance.findOne(withCompany(req, { itemCode: code, warehouse: w })).lean();
+    res.status(201).json(bal);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  } finally {
+    await session.endSession();
+  }
+}

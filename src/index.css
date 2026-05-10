@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+/* ============================================================
+ * PST ERP — Premium industrial theme
+ * Palette: deep navy, white, steel grey, minimal orange accent
+ * ============================================================ */
+@theme {
+  /* Brand colors */
+  --color-pst-navy: #0b1e3f;
+  --color-pst-navy-900: #07152e;
+  --color-pst-navy-800: #0b1e3f;
+  --color-pst-navy-700: #122b59;
+  --color-pst-navy-600: #1a3d7a;
+  --color-pst-navy-500: #245098;
+  --color-pst-navy-400: #4670b8;
+  --color-pst-navy-300: #7e9ace;
+  --color-pst-navy-200: #c0cee2;
+  --color-pst-navy-100: #e3eaf3;
+
+  --color-pst-steel-50:  #f7f9fc;
+  --color-pst-steel-100: #f1f5f9;
+  --color-pst-steel-200: #e2e8f0;
+  --color-pst-steel-300: #cbd5e1;
+  --color-pst-steel-400: #94a3b8;
+  --color-pst-steel-500: #64748b;
+  --color-pst-steel-600: #475569;
+  --color-pst-steel-700: #334155;
+
+  --color-pst-orange:    #f97316;
+  --color-pst-orange-soft:#fb923c;
+  --color-pst-orange-100:#fff1e6;
+  --color-pst-orange-700:#c2410c;
+
+  /* Shadows */
+  --shadow-pst-card: 0 1px 2px rgba(11, 30, 63, 0.04), 0 4px 14px rgba(11, 30, 63, 0.06);
+  --shadow-pst-card-hover: 0 1px 2px rgba(11, 30, 63, 0.05), 0 8px 24px rgba(11, 30, 63, 0.10);
+  --shadow-pst-soft: 0 1px 2px rgba(11, 30, 63, 0.03), 0 1px 3px rgba(11, 30, 63, 0.05);
+
+  /* Sidebar dimensions */
+  --sidebar-w-expanded: 17rem;   /* 272px */
+  --sidebar-w-collapsed: 4.5rem; /* 72px  */
+
+  /* Topbar height */
+  --topbar-h: 4rem;
+}
+
+/* Global polish */
+html, body, #root {
+  height: 100%;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui,
+               "Helvetica Neue", Arial, sans-serif;
+  background: var(--color-pst-steel-50);
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utility classes used throughout the app shell */
+.pst-card {
+  background: #fff;
+  border: 1px solid var(--color-pst-steel-200);
+  border-radius: 0.875rem;
+  box-shadow: var(--shadow-pst-card);
+}
+.pst-card:hover {
+  box-shadow: var(--shadow-pst-card-hover);
+}
+
+.pst-kpi-card {
+  background: #fff;
+  border: 1px solid var(--color-pst-steel-200);
+  border-radius: 0.875rem;
+  padding: 1.1rem 1.15rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-pst-card);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.pst-kpi-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(to bottom, var(--color-pst-navy-700), var(--color-pst-navy-500));
+  opacity: 0.9;
+}
+.pst-kpi-card.kpi-accent::before {
+  background: linear-gradient(to bottom, var(--color-pst-orange), var(--color-pst-orange-soft));
+}
+.pst-kpi-card:hover {
+  box-shadow: var(--shadow-pst-card-hover);
+  transform: translateY(-1px);
+}
+
+/* Sticky table header & cleaner table styling */
+.pst-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+}
+.pst-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--color-pst-steel-100);
+  color: var(--color-pst-navy-800);
+  font-weight: 600;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--color-pst-steel-200);
+  text-align: left;
+}
+.pst-table tbody td {
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--color-pst-steel-200);
+  color: #1e293b;
+}
+.pst-table tbody tr:hover {
+  background: var(--color-pst-steel-50);
+}
+
+/* Premium scrollbar (Chrome / Edge) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-pst-steel-300);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-pst-steel-400); background-clip: padding-box; }
+
+/* Subtle focus ring (orange accent) */
+:focus-visible {
+  outline: 2px solid var(--color-pst-orange);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Animation helpers */
+.pst-fade-in { animation: pst-fade-in 0.25s ease-out; }
+@keyframes pst-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

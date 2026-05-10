@@ -1,0 +1,104 @@
+import mongoose from "mongoose";
+
+const quotationLineSchema = new mongoose.Schema(
+  {
+    serialNo: { type: Number, default: 0, min: 0 },
+    description: { type: String, default: "" },
+    partNumber: { type: String, default: "", trim: true },
+    article: { type: String, required: true, trim: true, uppercase: true, index: true },
+    qty: { type: Number, required: true, min: 0.0001 },
+    uom: { type: String, default: "PCS", trim: true },
+    price: { type: Number, default: 0, min: 0 },
+    totalPrice: { type: Number, default: 0, min: 0 },
+    remarks: { type: String, default: "" },
+    materialCode: { type: String, default: "", trim: true },
+    availability: { type: String, default: "", trim: true },
+  },
+  { _id: true }
+);
+
+const partySnapshotSchema = new mongoose.Schema(
+  {
+    name: { type: String, default: "", trim: true },
+    billingAddress: { type: String, default: "", trim: true },
+    shippingAddress: { type: String, default: "", trim: true },
+    contactPerson: { type: String, default: "", trim: true },
+    email: { type: String, default: "", trim: true },
+    phone: { type: String, default: "", trim: true },
+    country: { type: String, default: "", trim: true },
+  },
+  { _id: false }
+);
+
+const companySnapshotSchema = new mongoose.Schema(
+  {
+    companyName: { type: String, default: "", trim: true },
+    logo: { type: String, default: "", trim: true },
+    address: { type: String, default: "", trim: true },
+    email: { type: String, default: "", trim: true },
+    phone: { type: String, default: "", trim: true },
+    registrationNo: { type: String, default: "", trim: true },
+  },
+  { _id: false }
+);
+
+const quotationSchema = new mongoose.Schema(
+  {
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company", required: true, index: true },
+    quotationNo: { type: String, required: true, trim: true },
+    quotationNumber: { type: String, default: "", trim: true },
+    quotationDate: { type: Date, default: () => new Date() },
+    validityDate: { type: Date },
+    customerId: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", default: null, index: true },
+    customerName: { type: String, required: true, trim: true, index: true },
+    customerReference: { type: String, default: "", trim: true },
+    attention: { type: String, default: "", trim: true },
+    vertical: { type: String, default: "", trim: true },
+    engine: { type: String, default: "", trim: true },
+    model: { type: String, default: "", trim: true },
+    config: { type: String, default: "", trim: true },
+    esn: { type: String, default: "", trim: true },
+    paymentTerms: { type: String, default: "", trim: true },
+    deliveryTerms: { type: String, default: "", trim: true },
+    incoterm: { type: String, default: "", trim: true },
+    currency: { type: String, default: "USD", trim: true },
+    exchangeRate: { type: Number, default: 1, min: 0 },
+    portOfLoading: { type: String, default: "", trim: true },
+    portOfDischarge: { type: String, default: "", trim: true },
+    finalDestination: { type: String, default: "", trim: true },
+    remarks: { type: String, default: "" },
+    internalNotes: { type: String, default: "" },
+
+    customer: { type: partySnapshotSchema, default: () => ({}) },
+    companySnapshot: { type: companySnapshotSchema, default: () => ({}) },
+
+    lines: { type: [quotationLineSchema], default: [] },
+    subTotal: { type: Number, default: 0 },
+    discountType: { type: String, enum: ["NONE", "PERCENT", "FLAT"], default: "NONE", trim: true },
+    discountValue: { type: Number, default: 0, min: 0 },
+    discountTotal: { type: Number, default: 0 },
+    taxTotal: { type: Number, default: 0 },
+    packingCost: { type: Number, default: 0, min: 0 },
+    clearanceCost: { type: Number, default: 0, min: 0 },
+    grandTotal: { type: Number, default: 0 },
+    status: {
+      type: String,
+      enum: ["DRAFT", "SENT", "APPROVED", "REJECTED", "EXPIRED", "CONVERTED", "CANCELLED"],
+      default: "DRAFT",
+    },
+    sourceType: { type: String, default: "MANUAL", trim: true },
+    convertedTo: [{ type: String, default: "", trim: true }],
+    shipmentReference: { type: String, default: "", trim: true },
+    cancelledAt: { type: Date, default: null },
+    cancelledBy: { type: String, default: "" },
+    cancellationReason: { type: String, default: "" },
+    createdBy: { type: String, default: "" },
+    updatedBy: { type: String, default: "" },
+  },
+  { timestamps: true }
+);
+
+quotationSchema.index({ companyId: 1, quotationNo: 1 }, { unique: true });
+quotationSchema.index({ companyId: 1, quotationDate: -1 });
+
+export default mongoose.model("Quotation", quotationSchema);
