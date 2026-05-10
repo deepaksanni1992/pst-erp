@@ -1,11 +1,11 @@
 /**
- * Seed a single super-admin user for PST ERP (full access).
+ * Seed a single super_admin user for PST ERP (replaces all legacy seed accounts).
  *
  * Run from backend folder:  node src/seedUsers.js
  * Requires MONGO_URI and DEFAULT_ADMIN_PASSWORD in pst-erp/backend/.env
  *
- * This script DELETES ALL existing users, then creates one account.
- * Never commit real passwords — use env only.
+ * This script DELETES ALL existing users (including retired admin/accounts/purchase),
+ * then creates one super_admin account. Passwords never belong in source code.
  */
 import "./loadEnv.js";
 import mongoose from "mongoose";
@@ -13,6 +13,13 @@ import bcrypt from "bcrypt";
 import User from "./models/User.js";
 import Company from "./models/Company.js";
 import { validateRequiredEnv } from "./config/validateEnv.js";
+
+/** Retired demo passwords — refuse in production so they are not re-seeded by mistake. */
+const RETIRED_LEGACY_PASSWORDS = new Set([
+  "admin@pst2026",
+  "accounts@pst2026",
+  "purchase@pst2026",
+]);
 
 function trimEnv(key) {
   return String(process.env[key] ?? "").trim();
@@ -29,6 +36,12 @@ function resolveSeedPassword() {
   }
 
   const isProd = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+  if (isProd && RETIRED_LEGACY_PASSWORDS.has(pw.toLowerCase())) {
+    console.error(
+      "❌ Refusing retired legacy seed passwords (admin@pst2026 / accounts@pst2026 / purchase@pst2026). Choose a new strong password."
+    );
+    process.exit(1);
+  }
   if (isProd) {
     if (pw.length < 12) {
       console.error(
@@ -95,7 +108,7 @@ async function run() {
     defaultCompany: allCompanyIds[0] || null,
   });
 
-  console.log("Created single user:", username, email, `(${role})`);
+  console.log("Created single super_admin:", username, email);
   console.log("Companies linked:", allCompanyIds.length);
 
   await mongoose.disconnect();

@@ -80,7 +80,7 @@ Open `http://localhost:5174`. The Vite dev server proxies `/api/*` to `http://12
 ## MongoDB
 
 1. Create or use a database named in your URI (e.g. `.../pst_erp?...`).
-2. Seed the default company and the initial super-admin user (from `backend/`):
+2. Seed the default company and the primary login (from `backend/`):
 
 ```bash
 cd backend
@@ -89,7 +89,7 @@ npm run seed:company
 npm run seed:users
 ```
 
-`seed:users` **removes all existing users** and creates **one** `super_admin` account. Credentials come **only** from environment variables (`DEFAULT_ADMIN_PASSWORD`, etc.), not from source code. Use a strong password in production (`NODE_ENV=production` enforces minimum length and rejects common weak values).
+`seed:users` **deletes every user** in the database, then creates **one** `super_admin` (credentials **only** from env — never hardcoded). Older demo accounts (`admin`, `accounts`, `purchase` and passwords like `admin@pst2026`) are **retired**; run `seed:users` after updating `.env` to remove them from MongoDB. Use strong passwords in production (`NODE_ENV=production` enforces minimum length and rejects common weak values).
 
 ## Environment & secret management
 
