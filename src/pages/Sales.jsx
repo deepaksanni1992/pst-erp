@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import Papa from "papaparse";
-import PageHeader from "../components/erp/PageHeader.jsx";
+import { PageHeader } from "../components/ui/page-header.jsx";
+import { KpiCard } from "../components/ui/kpi-card.jsx";
+import { Button } from "../components/ui/button.jsx";
+import { SalesPipelineSteps } from "../components/sales/SalesPipelineSteps.jsx";
+import {
+  SALES_TAB_ORDER,
+  normalizeSalesTabParam,
+  internalTabToUrlSlug,
+  salesTabShortLabel,
+} from "../components/sales/SalesUrlTabs.jsx";
 import Modal from "../components/erp/Modal.jsx";
 import { FormField, TextInput } from "../components/erp/FormField.jsx";
 import ReceivePaymentModal from "../components/accounts/ReceivePaymentModal.jsx";
@@ -22,18 +32,6 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 /** Document types allowed when uploading from Sales Dispatch flow (subset of backend DOCUMENT_TYPES). */
 const SHIPPING_DOC_TYPE_OPTIONS = ["Shipping Document", "Packing List", "Other"];
-
-const salesTabs = [
-  "Customer Master",
-  "Quotation",
-  "Order Acknowledgement",
-  "Proforma Invoice",
-  "Order Allocation",
-  "Sales Invoice",
-  "Sales Dispatch",
-  "Sales Return",
-  "Reports",
-];
 
 const reportsCatalog = [
   {
@@ -1410,6 +1408,7 @@ function formatFileBytes(n) {
 
 export default function Sales() {
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { auth } = useAuth();
   const activeCompany = auth?.company;
   /** Auth persists `company.id` (not `_id`); align with `getActiveCompanyId()` in api.js */
@@ -1422,13 +1421,40 @@ export default function Sales() {
     qc.invalidateQueries({ queryKey: ["stock-customer-allocations"] });
     qc.invalidateQueries({ queryKey: ["sales-report"] });
   }, [qc]);
-  const [activeTab, setActiveTab] = useState("Quotation");
+
+  const [activeTab, setActiveTab] = useState(() =>
+    typeof window !== "undefined"
+      ? normalizeSalesTabParam(new URLSearchParams(window.location.search).get("tab"))
+      : "Quotation"
+  );
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  /** RTS register tab only — passed to GET /sales/rts */
+  const [rtsStatusFilter, setRtsStatusFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [verticalFilter, setVerticalFilter] = useState("");
   const limit = 20;
+
+  useEffect(() => {
+    const raw = searchParams.get("tab");
+    const next = normalizeSalesTabParam(raw);
+    setActiveTab((prev) => (prev === next ? prev : next));
+  }, [searchParams]);
+
+  function selectSalesTab(next) {
+    setActiveTab(next);
+    setPage(1);
+    setSearchParams(
+      (sp) => {
+        const np = new URLSearchParams(sp);
+        np.set("tab", internalTabToUrlSlug(next));
+        return np;
+      },
+      { replace: true }
+    );
+  }
+
   const quotationCsvInputRef = useRef(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [isQuotationNoEdited, setIsQuotationNoEdited] = useState(false);
@@ -1638,6 +1664,18 @@ export default function Sales() {
         search: search || undefined,
       }),
     enabled: activeTab === "Order Allocation",
+  });
+
+  const { data: rtsListData, isLoading: rtsListLoading } = useQuery({
+    queryKey: ["sales-rts-list", page, search, rtsStatusFilter],
+    queryFn: () =>
+      apiGetWithQuery("/sales/rts", {
+        page,
+        limit,
+        search: search || undefined,
+        status: rtsStatusFilter || undefined,
+      }),
+    enabled: activeTab === "RTS",
   });
 
   const { data: salesInvoiceData, isLoading: salesInvoiceLoading } = useQuery({
@@ -2494,6 +2532,7 @@ export default function Sales() {
       qc.invalidateQueries({ queryKey: ["sales-sales-invoices"] });
       qc.invalidateQueries({ queryKey: ["sales-order-allocation"] });
       qc.invalidateQueries({ queryKey: ["store-rts"] });
+      qc.invalidateQueries({ queryKey: ["sales-rts-list"] });
       qc.invalidateQueries({ queryKey: ["store-order-allocations"] });
       qc.invalidateQueries({ queryKey: ["sales-oa"] });
       qc.invalidateQueries({ queryKey: ["sales-proforma"] });
@@ -2849,6 +2888,8 @@ export default function Sales() {
   const salesReturnRows = salesReturnData?.items ?? [];
   const salesReturnTotalPages = Math.max(1, Math.ceil((salesReturnData?.total ?? 0) / limit));
   const customerTotalPages = Math.max(1, Math.ceil((customerData?.total ?? 0) / limit));
+  const rtsRows = rtsListData?.items ?? [];
+  const rtsTotalPages = Math.max(1, Math.ceil((rtsListData?.total ?? 0) / limit));
   const createQuotationTotals = calcQuotationTotalsView(form);
 
   const tabContent = useMemo(() => {
@@ -2857,6 +2898,7 @@ export default function Sales() {
     if (activeTab === "Order Acknowledgement") return "oa";
     if (activeTab === "Proforma Invoice") return "proforma";
     if (activeTab === "Order Allocation") return "allocation";
+    if (activeTab === "RTS") return "rts";
     if (activeTab === "Sales Invoice") return "sales-invoice";
     if (activeTab === "Sales Dispatch") return "sales-dispatch";
     if (activeTab === "Sales Return") return "sales-return";
@@ -2865,87 +2907,102 @@ export default function Sales() {
   }, [activeTab]);
 
   return (
-    <div>
-      <PageHeader title="Sales" subtitle="Company-wise sales workflow and reporting.">
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-700 ring-1 ring-sky-200">
-            {activeCompany?.code || activeCompany?.name || "No company"}
-          </span>
-          <button
-            type="button"
-            disabled={
-              activeTab === "Order Allocation" ||
-              activeTab === "Reports" ||
-              activeTab === "Sales Dispatch"
-            }
-            onClick={() => {
-              setErr("");
-              if (activeTab === "Customer Master") setCustomerCreateOpen(true);
-              else if (activeTab === "Quotation") {
-                setIsQuotationNoEdited(false);
-                setCreateOpen(true);
+    <div className="min-w-0">
+      <PageHeader
+        eyebrow="Workspace"
+        title="Sales"
+        description="Quotation → OA → PI → allocation → RTS → invoice. Company-scoped workflow and reporting."
+        actions={
+          <>
+            <span className="rounded-full bg-pst-orange/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-pst-navy-800 ring-1 ring-pst-orange/30">
+              {activeCompany?.code || activeCompany?.name || "No company"}
+            </span>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={
+                activeTab === "Order Allocation" ||
+                activeTab === "RTS" ||
+                activeTab === "Reports" ||
+                activeTab === "Sales Dispatch"
               }
-              else if (activeTab === "Order Acknowledgement") setOaCreateOpen(true);
-              else if (activeTab === "Proforma Invoice") setProformaCreateOpen(true);
-              else if (activeTab === "Sales Invoice") setSalesInvoiceCreateOpen(true);
-              else if (activeTab === "Sales Return") setSrCreateOpen(true);
-            }}
-            className="rounded-xl bg-gray-900 px-3 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-40"
-          >
-            {activeTab === "Customer Master"
-              ? "New customer"
-              : activeTab === "Quotation"
-              ? "New quotation"
-              : activeTab === "Order Acknowledgement"
-              ? "New OA"
-              : activeTab === "Proforma Invoice"
-              ? "New proforma"
-              : activeTab === "Sales Invoice"
-              ? "New sales invoice"
-              : activeTab === "Sales Dispatch"
-              ? "Create from dispatched invoice"
-              : activeTab === "Sales Return"
-              ? "New sales return"
-              : "Create new"}
-          </button>
-        </div>
-      </PageHeader>
+              onClick={() => {
+                setErr("");
+                if (activeTab === "Customer Master") setCustomerCreateOpen(true);
+                else if (activeTab === "Quotation") {
+                  setIsQuotationNoEdited(false);
+                  setCreateOpen(true);
+                } else if (activeTab === "Order Acknowledgement") setOaCreateOpen(true);
+                else if (activeTab === "Proforma Invoice") setProformaCreateOpen(true);
+                else if (activeTab === "Sales Invoice") setSalesInvoiceCreateOpen(true);
+                else if (activeTab === "Sales Return") setSrCreateOpen(true);
+              }}
+            >
+              {activeTab === "Customer Master"
+                ? "New customer"
+                : activeTab === "Quotation"
+                  ? "New quotation"
+                  : activeTab === "Order Acknowledgement"
+                    ? "New OA"
+                    : activeTab === "Proforma Invoice"
+                      ? "New proforma"
+                      : activeTab === "Sales Invoice"
+                        ? "New sales invoice"
+                        : activeTab === "Sales Dispatch"
+                          ? "Create from dispatched invoice"
+                          : activeTab === "Sales Return"
+                            ? "New sales return"
+                            : "Create new"}
+            </Button>
+          </>
+        }
+      />
 
-      <div className="mb-4 rounded-2xl border bg-white p-4 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {[
-            { label: "Total Quotations", value: salesSummary?.totalQuotations },
-            { label: "Pending Quotations", value: salesSummary?.pendingQuotations },
-            { label: "Total OA", value: salesSummary?.totalOA },
-            { label: "Pending OA", value: salesSummary?.pendingOA },
-            { label: "Total Proformas", value: salesSummary?.totalProformas },
-            { label: "Sales Invoices", value: salesSummary?.totalSalesInvoices },
-            { label: "Unpaid Invoices", value: salesSummary?.unpaidSalesInvoices },
-            { label: "Total Sales Value", value: `${summaryCurrency} ${money(salesSummary?.totalSalesValue)}` },
-            { label: "Total CIPL", value: salesSummary?.totalCipl },
-            { label: "This Month Sales", value: `${summaryCurrency} ${money(salesSummary?.thisMonthSales)}` },
-          ].map((kpi) => (
-            <div key={kpi.label} className="rounded-xl border border-gray-200 bg-gradient-to-b from-white to-gray-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{kpi.label}</p>
-              <p className="mt-2 text-xl font-semibold text-gray-900">{summaryLoading ? "..." : kpi.value ?? 0}</p>
-            </div>
-          ))}
-        </div>
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          { label: "Total quotations", value: salesSummary?.totalQuotations, hint: "All statuses" },
+          { label: "Pending quotations", value: salesSummary?.pendingQuotations, hint: "Follow-up" },
+          { label: "Total OA", value: salesSummary?.totalOA, hint: "Order acknowledgements" },
+          { label: "Pending OA", value: salesSummary?.pendingOA, hint: "Open confirmations" },
+          { label: "Total proformas", value: salesSummary?.totalProformas, hint: "PI register" },
+          { label: "Sales invoices", value: salesSummary?.totalSalesInvoices, hint: "Posted invoices" },
+          { label: "Unpaid invoices", value: salesSummary?.unpaidSalesInvoices, hint: "AR exposure" },
+          {
+            label: "Total sales value",
+            value: `${summaryCurrency} ${money(salesSummary?.totalSalesValue)}`,
+            hint: "Company currency",
+          },
+          { label: "Total CIPL", value: salesSummary?.totalCipl, hint: "Export docs" },
+          {
+            label: "This month sales",
+            value: `${summaryCurrency} ${money(salesSummary?.thisMonthSales)}`,
+            hint: "Month to date",
+          },
+        ].map((kpi) => (
+          <KpiCard
+            key={kpi.label}
+            label={kpi.label}
+            value={kpi.value ?? 0}
+            hint={kpi.hint}
+            loading={summaryLoading}
+            tone="default"
+          />
+        ))}
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2 rounded-2xl border bg-white p-2 shadow-sm">
-        {salesTabs.map((tab) => (
+      <div className="sticky top-0 z-20 mb-4 flex flex-wrap gap-2 rounded-2xl border border-pst-steel-200 bg-white/95 p-2 shadow-[var(--shadow-pst-soft)] backdrop-blur supports-[backdrop-filter]:bg-white/80">
+        {SALES_TAB_ORDER.map((tab) => (
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => selectSalesTab(tab)}
             className={`rounded-xl px-3 py-1.5 text-sm font-medium transition ${
               activeTab === tab
-                ? "bg-gray-900 text-white shadow-sm"
-                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                ? "bg-pst-navy-800 text-white shadow-sm"
+                : "border border-transparent text-pst-navy-800 hover:border-pst-steel-200 hover:bg-pst-steel-50"
             }`}
           >
-            {tab === "Order Acknowledgement" ? "Order Ack." : tab === "Proforma Invoice" ? "Proforma" : tab}
+            {salesTabShortLabel(tab)}
           </button>
         ))}
       </div>
@@ -4469,6 +4526,7 @@ export default function Sales() {
                                     qc.invalidateQueries({ queryKey: ["sales-order-allocation"] });
                                     qc.invalidateQueries({ queryKey: ["sales-sales-invoices"] });
                                     qc.invalidateQueries({ queryKey: ["store-rts"] });
+                                    qc.invalidateQueries({ queryKey: ["sales-rts-list"] });
                                     invalidateStockViews();
                                   })
                                   .catch((e) => setErr(e.message))
@@ -4635,6 +4693,240 @@ export default function Sales() {
                   type="button"
                   className="rounded-lg border px-2 py-1 disabled:opacity-40"
                   disabled={page >= allocationTotalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : tabContent === "rts" ? (
+        <>
+          <div className="mb-3 flex flex-wrap items-end gap-2 rounded-2xl border border-pst-steel-200 bg-white p-3 shadow-[var(--shadow-pst-soft)]">
+            <TextInput
+              placeholder="Search RTS / customer / allocation"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-64"
+            />
+            <select
+              className="rounded-xl border border-pst-steel-200 px-3 py-2 text-sm"
+              value={rtsStatusFilter}
+              onChange={(e) => {
+                setRtsStatusFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All RTS statuses</option>
+              {rtsStatusOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="rounded-xl border border-pst-steel-200 px-3 py-2 text-sm"
+              onClick={() =>
+                exportListCsv("rts-register", rtsRows, [
+                  { label: "RTS No", value: (r) => r.rtsNo || "" },
+                  { label: "Date", value: (r) => (r.rtsDate ? new Date(r.rtsDate).toLocaleDateString() : "") },
+                  { label: "Customer", value: (r) => r.customerName || "" },
+                  { label: "Allocation", value: (r) => r.linkedOrderAllocationNo || "" },
+                  { label: "Status", value: (r) => r.status || "" },
+                  { label: "Linked invoice", value: (r) => r.linkedSalesInvoiceNo || "" },
+                ])
+              }
+            >
+              Export CSV
+            </button>
+            <span className="text-xs text-pst-steel-500">Source: GET /sales/rts (paged)</span>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-pst-steel-200 bg-white">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="sticky top-0 z-10 border-b bg-pst-steel-100 text-xs font-semibold uppercase tracking-wide text-pst-navy-800">
+                  <tr>
+                    <th className="px-3 py-2">RTS No</th>
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">Customer</th>
+                    <th className="px-3 py-2">Allocation</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Linked SI</th>
+                    <th className="px-3 py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rtsListLoading ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-8 text-center text-pst-steel-500">
+                        Loading…
+                      </td>
+                    </tr>
+                  ) : rtsRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-8 text-center text-pst-steel-500">
+                        No RTS documents found.
+                      </td>
+                    </tr>
+                  ) : (
+                    rtsRows.map((r) => (
+                      <tr key={r._id} className="border-b border-pst-steel-100 hover:bg-pst-steel-50/80">
+                        <td className="px-3 py-2 font-mono text-xs">{r.rtsNo}</td>
+                        <td className="px-3 py-2">{r.rtsDate ? new Date(r.rtsDate).toLocaleDateString() : "-"}</td>
+                        <td className="px-3 py-2">{r.customerName}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{r.linkedOrderAllocationNo || "-"}</td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${statusBadgeClass(r.status)}`}
+                          >
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs">{r.linkedSalesInvoiceNo || "—"}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-1">
+                            <button
+                              type="button"
+                              className="rounded-lg border border-pst-steel-200 px-2 py-1 text-xs"
+                              onClick={() => openFlowDocumentPrint("rts", r._id)}
+                            >
+                              Print
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-lg border border-pst-steel-200 px-2 py-1 text-xs"
+                              onClick={() => openFlowDocumentPrint("rts", r._id, true)}
+                            >
+                              PDF
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-lg border border-pst-steel-200 px-2 py-1 text-xs"
+                              onClick={() =>
+                                apiGet(`/sales/rts/${r._id}`)
+                                  .then((doc) =>
+                                    exportListCsv(`rts-${doc.rtsNo || "export"}`, rtsCsvRowsForSales(doc), [
+                                      { label: "Record Type", value: (x) => x.recordType || "" },
+                                      { label: "RTS No", value: (x) => x.rtsNo || "" },
+                                      { label: "RTS Date", value: (x) => x.rtsDate || "" },
+                                      { label: "Allocation No", value: (x) => x.allocationNo || "" },
+                                      { label: "Customer", value: (x) => x.customer || "" },
+                                      { label: "Total Weight Kg", value: (x) => x.totalWeightKg ?? "" },
+                                      { label: "Box Material", value: (x) => x.boxMaterial || "" },
+                                      { label: "Box Count", value: (x) => x.boxCount ?? "" },
+                                      { label: "Box Dimensions mm", value: (x) => x.boxDimensionsMm || "" },
+                                      { label: "Box Remarks", value: (x) => x.boxRemarks || "" },
+                                      { label: "S/N", value: (x) => x.serialNo || "" },
+                                      { label: "Article", value: (x) => x.article || "" },
+                                      { label: "Part no", value: (x) => x.partNo || "" },
+                                      { label: "Description", value: (x) => x.description || "" },
+                                      { label: "UOM", value: (x) => x.uom || "" },
+                                      { label: "Qty", value: (x) => x.qty ?? "" },
+                                      { label: "COO", value: (x) => x.coo || "Germany" },
+                                      { label: "Unit weight kg", value: (x) => x.unitWeightKg ?? "" },
+                                      { label: "Total line weight kg", value: (x) => x.totalLineWeightKg ?? "" },
+                                    ])
+                                  )
+                                  .catch((e) => setErr(e.message))
+                              }
+                            >
+                              CSV
+                            </button>
+                            <button
+                              type="button"
+                              className={`rounded-lg border border-pst-steel-200 px-2 py-1 text-xs ${
+                                String(r.status || "").toUpperCase() !== "APPROVED" || r.linkedSalesInvoiceId
+                                  ? "opacity-40"
+                                  : ""
+                              }`}
+                              disabled={
+                                String(r.status || "").toUpperCase() !== "APPROVED" || !!r.linkedSalesInvoiceId
+                              }
+                              title={
+                                r.linkedSalesInvoiceId
+                                  ? "Already linked to a sales invoice"
+                                  : String(r.status || "").toUpperCase() !== "APPROVED"
+                                    ? "RTS must be approved"
+                                    : "Create sales invoice from this RTS"
+                              }
+                              onClick={() =>
+                                apiPost(`/sales/rts/${r._id}/convert-to-invoice`, {})
+                                  .then(() => {
+                                    qc.invalidateQueries({ queryKey: ["sales-sales-invoices"] });
+                                    qc.invalidateQueries({ queryKey: ["sales-rts-list"] });
+                                    qc.invalidateQueries({ queryKey: ["sales-order-allocation"] });
+                                    qc.invalidateQueries({ queryKey: ["store-rts"] });
+                                    invalidateStockViews();
+                                  })
+                                  .catch((e) => setErr(e.message))
+                              }
+                            >
+                              To SI
+                            </button>
+                            <button
+                              type="button"
+                              className={`rounded-lg border border-pst-steel-200 px-2 py-1 text-xs ${
+                                String(r.status || "").toUpperCase() === "CANCELLED" ? "opacity-40" : ""
+                              }`}
+                              disabled={String(r.status || "").toUpperCase() === "CANCELLED"}
+                              title={
+                                String(r.status || "").toUpperCase() === "CANCELLED"
+                                  ? "Already cancelled"
+                                  : "Cancel RTS (stock reversal preview)"
+                              }
+                              onClick={async () => {
+                                setErr("");
+                                try {
+                                  const preview = await salesCancelMutation.mutateAsync({
+                                    kind: "RTS",
+                                    id: r._id,
+                                    reason: "-",
+                                    dryRun: true,
+                                  });
+                                  setSalesCancelModal({
+                                    open: true,
+                                    kind: "RTS",
+                                    id: r._id,
+                                    reason: "",
+                                    preview,
+                                  });
+                                } catch (e) {
+                                  setErr(e.message);
+                                }
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between border-t border-pst-steel-200 px-3 py-2 text-sm text-pst-steel-600">
+              <span>
+                Page {page}/{rtsTotalPages} · {rtsListData?.total ?? 0} RTS
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-pst-steel-200 px-2 py-1 disabled:opacity-40"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-pst-steel-200 px-2 py-1 disabled:opacity-40"
+                  disabled={page >= rtsTotalPages}
                   onClick={() => setPage((p) => p + 1)}
                 >
                   Next
@@ -5142,6 +5434,12 @@ export default function Sales() {
             <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
               Draft quotation — edit below, save changes, then use status buttons to approve when ready. Conversion to OA / Proforma is only available after <b>APPROVED</b>.
             </div>
+            <SalesPipelineSteps
+              highlight="quotation"
+              refs={{
+                quotationNo: detailQuotationDraftForm?.quotationNo,
+              }}
+            />
             <div className="grid gap-3 sm:grid-cols-4">
               <FormField label="Quotation No">
                 <TextInput value={detailQuotationDraftForm.quotationNo} onChange={(e) => setDetailQuotationDraftForm((f) => ({ ...f, quotationNo: e.target.value }))} />
@@ -5497,6 +5795,17 @@ export default function Sales() {
           </div>
         ) : tabContent === "quotation" && detail ? (
           <div className="space-y-4 text-sm">
+            <SalesPipelineSteps
+              highlight="quotation"
+              refs={{
+                quotationNo: detail?.quotationNo,
+                oaNo: detail?.linkedOANo,
+                piNo: detail?.linkedProformaNo,
+                allocationNo: detail?.linkedOrderAllocationNo,
+                rtsNo: detail?.linkedRtsNo ?? detail?.latestApprovedRtsNo,
+                invoiceNo: detail?.linkedSalesInvoiceNo,
+              }}
+            />
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <div className="text-gray-500">No</div>
@@ -6029,6 +6338,17 @@ export default function Sales() {
                   ? "This OA shows as Approved after conversion to PI and/or Sales Invoice — it cannot be edited. Print or export PDF when you need to share it."
                   : "This OA cannot be edited in its current state. Print or export PDF when you need to share it."}
               </p>
+              <SalesPipelineSteps
+                highlight="oa"
+                refs={{
+                  quotationNo: oaDetail?.linkedQuotationNo,
+                  oaNo: oaDetail?.oaNo,
+                  piNo: oaDetail?.linkedProformaNo,
+                  allocationNo: oaDetail?.linkedOrderAllocationNo,
+                  rtsNo: oaDetail?.latestApprovedRtsNo,
+                  invoiceNo: oaDetail?.linkedSalesInvoiceNo,
+                }}
+              />
               <div className="grid gap-2 sm:grid-cols-3">
                 <div>
                   <div className="text-gray-500">OA No</div>
@@ -6470,6 +6790,17 @@ export default function Sales() {
                   ? "This proforma is approved (linked to Sales Invoice or CIPL) — editing is disabled. Print or export PDF to share."
                   : "This proforma is not in draft — view only. Print or export PDF when needed."}
               </p>
+              <SalesPipelineSteps
+                highlight="pi"
+                refs={{
+                  quotationNo: proformaDetail?.linkedQuotationNo,
+                  oaNo: proformaDetail?.linkedOANo,
+                  piNo: proformaDetail?.proformaNo,
+                  allocationNo: proformaDetail?.linkedOrderAllocationNo,
+                  rtsNo: proformaDetail?.linkedRtsNo,
+                  invoiceNo: proformaDetail?.linkedSalesInvoiceNo,
+                }}
+              />
               <div className="grid gap-2 sm:grid-cols-3">
                 <div>
                   <div className="text-gray-500">PI No</div>
@@ -6757,6 +7088,17 @@ export default function Sales() {
             </div>
           ) : (
             <div className="space-y-3 text-sm">
+              <SalesPipelineSteps
+                highlight="invoice"
+                refs={{
+                  quotationNo: salesInvoiceDetail?.linkedQuotationNo,
+                  oaNo: salesInvoiceDetail?.linkedOANo,
+                  piNo: salesInvoiceDetail?.linkedProformaNo,
+                  allocationNo: salesInvoiceDetail?.linkedOrderAllocationNo,
+                  rtsNo: salesInvoiceDetail?.linkedRtsNo,
+                  invoiceNo: salesInvoiceDetail?.invoiceNo,
+                }}
+              />
               <div className="grid gap-2 sm:grid-cols-3">
                 <div><div className="text-gray-500">Invoice No</div><div className="font-mono">{salesInvoiceDetail.invoiceNo}</div></div>
                 <div><div className="text-gray-500">Customer</div><div>{salesInvoiceDetail.customerName}</div></div>
