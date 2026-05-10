@@ -1,36 +1,78 @@
-import Modal from "../erp/Modal.jsx";
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from "../ui/dialog.jsx";
+import { Button } from "../ui/button.jsx";
 
 export default function PaymentReceiptView({ open, onClose, receipt, onPrint, onViewSlip }) {
   const r = receipt || {};
   return (
-    <Modal open={open} onClose={onClose} title="Payment Receipt View" wide>
-      <div className="grid gap-2 rounded-xl border bg-white p-4 text-sm sm:grid-cols-2">
-        <div><b>Receipt No:</b> {r.receiptNo || "-"}</div>
-        <div><b>Receipt Date:</b> {r.receiptDate ? new Date(r.receiptDate).toLocaleDateString() : "-"}</div>
-        <div><b>Customer:</b> {r.customerName || "-"}</div>
-        <div><b>Currency:</b> {r.currency || "-"}</div>
-        <div><b>Amount Received:</b> {Number(r.amountReceived || 0).toFixed(2)}</div>
-        <div><b>Allocated:</b> {Number(r.allocatedAmount || 0).toFixed(2)}</div>
-        <div><b>Unallocated:</b> {Number(r.unallocatedAmount || 0).toFixed(2)}</div>
-        <div><b>Mode:</b> {String(r.paymentMode || "").replaceAll("_", " ") || "-"}</div>
-        <div><b>Bank/Cash Account:</b> {r.bankCashAccountName || r.accountName || "-"}</div>
-        <div><b>Reference:</b> {r.paymentReference || "-"}</div>
-        <div><b>Proforma:</b> {r.proformaInvoiceNo || "-"}</div>
-        <div><b>Sales Invoice:</b> {r.salesInvoiceNo || "-"}</div>
-        <div className="sm:col-span-2"><b>Remarks:</b> {r.remarks || "-"}</div>
-      </div>
-      <div className="mt-3 flex justify-end gap-2">
-        <button type="button" className="rounded-xl border px-3 py-2 text-sm" onClick={() => onPrint?.(r._id)}>Print</button>
-        <button
-          type="button"
-          className={`rounded-xl border px-3 py-2 text-sm ${r.attachmentKey ? "" : "opacity-40"}`}
-          disabled={!r.attachmentKey}
-          onClick={() => onViewSlip?.(r._id)}
-        >
-          View Slip
-        </button>
-        <button type="button" className="rounded-xl border px-3 py-2 text-sm" onClick={onClose}>Back</button>
-      </div>
-    </Modal>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose?.()} size="lg">
+      <DialogHeader title="Payment receipt" description="Allocation and reference details" onClose={onClose} />
+      <DialogBody>
+        <div className="grid gap-3 rounded-xl border border-pst-steel-200 bg-pst-steel-50/40 p-4 text-sm sm:grid-cols-2">
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Receipt No</span>
+            <div className="font-mono text-pst-navy-800">{r.receiptNo || "—"}</div>
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Receipt date</span>
+            <div>{r.receiptDate ? new Date(r.receiptDate).toLocaleDateString() : "—"}</div>
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Customer</span>
+            <div>{r.customerName || "—"}</div>
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Currency</span>
+            <div>{r.currency || "—"}</div>
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Amount received</span>
+            <div className="tabular-nums font-semibold text-pst-navy-800">{Number(r.amountReceived || 0).toFixed(2)}</div>
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Allocated</span>
+            <div className="tabular-nums">{Number(r.allocatedAmount || 0).toFixed(2)}</div>
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Unallocated</span>
+            <div className="tabular-nums">{Number(r.unallocatedAmount || 0).toFixed(2)}</div>
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Mode</span>
+            <div>{String(r.paymentMode || "").replaceAll("_", " ") || "—"}</div>
+          </div>
+          <div className="sm:col-span-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Bank / cash account</span>
+            <div>{r.bankCashAccountName || r.accountName || "—"}</div>
+          </div>
+          <div className="sm:col-span-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Payment reference</span>
+            <div className="font-mono text-xs">{r.paymentReference || "—"}</div>
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Proforma</span>
+            <div className="font-mono text-xs">{r.proformaInvoiceNo || "—"}</div>
+          </div>
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Sales invoice</span>
+            <div className="font-mono text-xs">{r.salesInvoiceNo || "—"}</div>
+          </div>
+          <div className="sm:col-span-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pst-steel-500">Remarks</span>
+            <div className="whitespace-pre-wrap text-pst-steel-700">{r.remarks || "—"}</div>
+          </div>
+        </div>
+      </DialogBody>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={() => onPrint?.(r._id)}>
+          Print
+        </Button>
+        <Button type="button" variant="outline" disabled={!r.attachmentKey} onClick={() => onViewSlip?.(r._id)}>
+          View slip
+        </Button>
+        <Button type="button" variant="primary" onClick={onClose}>
+          Close
+        </Button>
+      </DialogFooter>
+    </Dialog>
   );
 }

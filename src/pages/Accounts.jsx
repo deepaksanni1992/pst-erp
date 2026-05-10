@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import PageHeader from "../components/erp/PageHeader.jsx";
+import { useSearchParams } from "react-router-dom";
+import { PageHeader } from "../components/ui/page-header.jsx";
 import Modal from "../components/erp/Modal.jsx";
 import { FormField, SelectInput, TextInput } from "../components/erp/FormField.jsx";
 import CustomerLedgerTab from "../components/accounts/CustomerLedgerTab.jsx";
@@ -11,6 +12,11 @@ import CashBankLedgerTab from "../components/accounts/CashBankLedgerTab.jsx";
 import JournalEntriesTab from "../components/accounts/JournalEntriesTab.jsx";
 import PaymentReceiptsTab from "../components/accounts/PaymentReceiptsTab.jsx";
 import PaymentReceiptView from "../components/accounts/PaymentReceiptView.jsx";
+import { AccountsOverviewPanel } from "../components/accounts/AccountsOverviewPanel.jsx";
+import {
+  normalizeAccountsTabParam,
+  internalAccountsTabToSlug,
+} from "../components/accounts/AccountsUrlTabs.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { apiDelete, apiGet, apiGetWithQuery, apiPatch, apiPost, apiPostFormData, apiPut } from "../lib/api.js";
 import { downloadCsv, downloadPdfTable } from "../lib/purchaseExport.js";
@@ -70,6 +76,7 @@ function truncateBankAddressCell(s, max = 56) {
 }
 
 const tabs = [
+  { id: "overview", label: "Overview" },
   { id: "ar", label: "AR Dashboard" },
   { id: "ap", label: "AP Dashboard" },
   { id: "cust", label: "Customer Ledger" },
@@ -100,7 +107,12 @@ export default function Accounts() {
   const { auth } = useAuth();
   const bankDetailsAdmin = canManageBankDetails(auth?.user?.role);
   const qc = useQueryClient();
-  const [tab, setTab] = useState("si");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useState(() =>
+    typeof window !== "undefined"
+      ? normalizeAccountsTabParam(new URLSearchParams(window.location.search).get("tab"))
+      : "si"
+  );
   const [page, setPage] = useState(1);
   const limit = 25;
   const [err, setErr] = useState("");
@@ -186,6 +198,25 @@ export default function Accounts() {
   const [supplierPaymentFile, setSupplierPaymentFile] = useState(null);
   const [bankForm, setBankForm] = useState(() => emptyBankForm());
   const [bankEditId, setBankEditId] = useState(null);
+
+  useEffect(() => {
+    const raw = searchParams.get("tab");
+    const next = normalizeAccountsTabParam(raw);
+    setTab((prev) => (prev === next ? prev : next));
+  }, [searchParams]);
+
+  function selectAccountsTab(next) {
+    setTab(next);
+    setPage(1);
+    setSearchParams(
+      (sp) => {
+        const np = new URLSearchParams(sp);
+        np.set("tab", internalAccountsTabToSlug(next));
+        return np;
+      },
+      { replace: true }
+    );
+  }
 
   const siQ = useQuery({
     queryKey: ["salesInvoices", page],
@@ -302,6 +333,22 @@ export default function Accounts() {
     enabled: tab === "journal",
   });
 
+  const overviewArQ = useQuery({
+    queryKey: ["accountsOverviewAr"],
+    queryFn: () => apiGetWithQuery("/accounts/outstanding", {}),
+    enabled: tab === "overview",
+  });
+  const overviewApQ = useQuery({
+    queryKey: ["accountsOverviewAp"],
+    queryFn: () => apiGet("/accounts/supplier-outstanding"),
+    enabled: tab === "overview",
+  });
+  const overviewRcptQ = useQuery({
+    queryKey: ["accountsOverviewRcpt"],
+    queryFn: () => apiGetWithQuery("/payment-receipts", { page: 1, limit: 100 }),
+    enabled: tab === "overview",
+  });
+
   const postMut = useMutation({
     mutationFn: ({ path, body }) => apiPost(path, body),
     onSuccess: (_, v) => {
@@ -370,6 +417,7 @@ export default function Accounts() {
   });
 
   function activeRows() {
+    if (tab === "overview") return [];
     if (tab === "si") return siQ.data?.items ?? [];
     if (tab === "sd") return sdQ.data?.items ?? [];
     if (tab === "pi") return piQ.data?.items ?? [];
@@ -387,6 +435,7 @@ export default function Accounts() {
   }
 
   function activeTotal() {
+    if (tab === "overview") return 0;
     if (tab === "si") return siQ.data?.total ?? 0;
     if (tab === "sd") return sdQ.data?.total ?? 0;
     if (tab === "pi") return piQ.data?.total ?? 0;
@@ -474,8 +523,7 @@ export default function Accounts() {
 
   function openJournalEntry(journalEntryId) {
     if (!journalEntryId) return;
-    setTab("journal");
-    setPage(1);
+    selectAccountsTab("journal");
   }
 
   function exportPaymentReceiptsCsv(rows = []) {
@@ -599,6 +647,10 @@ export default function Accounts() {
       qc.invalidateQueries({ queryKey: ["accountsJournals"] });
       qc.invalidateQueries({ queryKey: ["cashBank"] });
       qc.invalidateQueries({ queryKey: ["customerLedger"] });
+      qc.invalidateQueries({ queryKey: ["accountsOverviewAr"] });
+      qc.invalidateQueries({ queryKey: ["accountsOverviewAp"] });
+      qc.invalidateQueries({ queryKey: ["accountsOverviewRcpt"] });
+      qc.invalidateQueries({ queryKey: ["accountsOutstanding"] });
     },
     onError: (e) => setErr(e.message),
   });
@@ -682,8 +734,9 @@ export default function Accounts() {
   return (
     <div>
       <PageHeader
+        eyebrow="Finance"
         title="Accounts"
-        subtitle="Invoices, sales dispatches (ship / close vs payment), AR/AP ledgers, and cash or bank movements."
+        description="AR/AP ledgers, receipts, invoices, cash/bank, journals, and reporting — company scoped."
       />
 
       {err ? (
@@ -692,18 +745,17 @@ export default function Accounts() {
         </div>
       ) : null}
 
-      <div className="mb-4 flex flex-wrap gap-2 rounded-2xl border bg-white p-2">
+      <div className="sticky top-0 z-20 mb-4 flex flex-wrap gap-2 rounded-2xl border border-pst-steel-200 bg-white/95 p-2 shadow-[var(--shadow-pst-soft)] backdrop-blur supports-[backdrop-filter]:bg-white/85">
         {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
-            onClick={() => {
-              setTab(t.id);
-              setPage(1);
-            }}
+            onClick={() => selectAccountsTab(t.id)}
             className={[
-              "rounded-xl px-3 py-2 text-sm font-medium",
-              tab === t.id ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100",
+              "rounded-xl px-3 py-2 text-sm font-medium transition",
+              tab === t.id
+                ? "bg-pst-navy-800 text-white shadow-sm"
+                : "border border-transparent text-pst-navy-800 hover:border-pst-steel-200 hover:bg-pst-steel-50",
             ].join(" ")}
           >
             {t.label}
@@ -759,11 +811,12 @@ export default function Accounts() {
         </div>
       )}
 
-      {(tab !== "bank" || bankDetailsAdmin) && tab !== "sd" && tab !== "payrcpt" && (
+      {(tab !== "bank" || bankDetailsAdmin) &&
+        ["si", "pi", "cust", "supp", "cash", "bank", "payv"].includes(tab) && (
         <div className="mb-3 flex justify-end">
           <button
             type="button"
-            className="rounded-xl bg-gray-900 px-3 py-2 text-sm font-semibold text-white"
+            className="rounded-xl bg-pst-navy-800 px-3 py-2 text-sm font-semibold text-white shadow-sm"
             onClick={() => {
               setErr("");
               if (tab === "bank") {
@@ -784,8 +837,19 @@ export default function Accounts() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border bg-white">
+      <div className="overflow-hidden rounded-2xl border border-pst-steel-200 bg-white shadow-[var(--shadow-pst-soft)]">
         <div className="overflow-x-auto">
+          {tab === "overview" && (
+            <AccountsOverviewPanel
+              loadingAr={overviewArQ.isLoading}
+              loadingAp={overviewApQ.isLoading}
+              loadingRcpt={overviewRcptQ.isLoading}
+              arItems={overviewArQ.data?.items ?? []}
+              apItems={overviewApQ.data?.items ?? []}
+              receiptItems={overviewRcptQ.data?.items ?? []}
+              onNavigate={selectAccountsTab}
+            />
+          )}
           {tab === "si" && (
             <table className="min-w-full text-left text-sm">
               <thead className="border-b bg-gray-50 text-xs font-semibold text-gray-600">
@@ -1006,13 +1070,11 @@ export default function Accounts() {
               onPrint={() => printCustomerStatement(activeRows())}
               onOpenInvoice={(id) => {
                 if (!id) return;
-                setTab("si");
-                setPage(1);
+                selectAccountsTab("si");
               }}
               onOpenPayment={(id) => {
                 if (!id) return;
-                setTab("payrcpt");
-                setPage(1);
+                selectAccountsTab("payrcpt");
               }}
               onPreviewAttachment={(id) => openPaymentReceiptSlip(id, true)}
             />
@@ -1281,7 +1343,12 @@ export default function Accounts() {
             </table>
           )}
         </div>
-        {tab !== "cust" && tab !== "supp" && tab !== "outstanding" && tab !== "aging" && !["ar", "ap", "payv", "alloc", "reports"].includes(tab) ? (
+        {tab !== "cust" &&
+        tab !== "supp" &&
+        tab !== "outstanding" &&
+        tab !== "aging" &&
+        tab !== "overview" &&
+        !["ar", "ap", "payv", "alloc", "reports"].includes(tab) ? (
           <div className="flex items-center justify-between border-t px-3 py-2 text-sm text-gray-600">
             <span>
               Page {page}/{totalPages} · {total} rows
