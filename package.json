@@ -8,6 +8,7 @@
     "dev": "vite",
     "dev:backend": "npm --prefix backend run dev",
     "build": "vite build",
+    "check:secrets": "node scripts/check-secrets.mjs",
     "verify": "npm --prefix backend run verify && npm run build",
     "lint": "eslint .",
     "preview": "vite preview",

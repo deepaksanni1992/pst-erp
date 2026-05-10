@@ -1,5 +1,6 @@
 // backend/src/server.js
 import "./loadEnv.js";
+import { validateRequiredEnv } from "./config/validateEnv.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import express from "express";
@@ -45,11 +46,8 @@ console.log(
 
 async function startServer() {
   try {
+    validateRequiredEnv();
     mongoose.set("strictQuery", true);
-
-    if (!process.env.MONGO_URI) {
-      throw new Error("MONGO_URI is missing in pst-erp/backend/.env");
-    }
 
     await mongoose.connect(process.env.MONGO_URI, {
       serverSelectionTimeoutMS: 15000,

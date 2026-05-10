@@ -7,17 +7,26 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-uploads
+node_modules/
+dist/
+uploads/
 dist-ssr
 build
 *.local
 
-# Secrets (Vite root or other tooling)
+# Secrets & credentials (never commit)
 .env
 .env.*
 !.env.example
+!backend/.env.example
+!frontend/.env.example
+backend/.env
+frontend/.env
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
 
 # Editor directories and files
 .vscode/*

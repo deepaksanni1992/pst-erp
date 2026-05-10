@@ -32,7 +32,8 @@ After the service is live, copy the URL (e.g. `https://pst-api.onrender.com`). T
 ```bash
 cd pst-erp/backend
 npm run seed:company      # upsert Purestream Energy FZE
-npm run seed:users        # admin / accounts / purchase logins
+# Set DEFAULT_ADMIN_PASSWORD (and optional DEFAULT_ADMIN_USERNAME) in Render env or backend/.env — see backend/.env.example
+npm run seed:users        # replaces all users with one super_admin from env
 ```
 
 ---

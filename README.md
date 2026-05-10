@@ -40,19 +40,23 @@ npm install --prefix backend
 
 ### 2. Environment files
 
-**Backend** — copy and edit `backend/.env` (never commit secrets):
+**Backend** — copy `backend/.env.example` → `backend/.env` and fill in values (never commit `backend/.env`):
 
-- `MONGO_URI` — must use a **PST-dedicated** database (example in `backend/.env.example` uses `pst_erp`)
-- `JWT_SECRET` — strong random string
+- `MONGO_URI` — must use a **PST-dedicated** database (see `backend/.env.example`)
+- `JWT_SECRET` — strong random string (32+ characters in production)
 - `PORT` — default **5001** (must match Vite proxy)
 - `CLIENT_URL` — e.g. `http://localhost:5174` for local UI
 - Optional: `AWS_*` for S3 (see [AWS / S3](#aws--s3))
 
-**Frontend** — for production builds (e.g. Vercel), set in the host UI:
+**Frontend** — for production builds (e.g. Vercel / Render static), set in the host UI:
 
 - `VITE_API_BASE_URL` or `VITE_API_BASE` — backend origin **without** `/api` (e.g. `https://your-api.onrender.com`)
 
+See also **[Environment & secret management](#environment--secret-management)**.
+
 Local `npm run dev` uses same-origin `/api` and does not need a remote API URL.
+
+Templates: repo root `.env.example`, `frontend/.env.example`, `backend/.env.example`.
 
 ### 3. Ports (standard for this repo)
 
@@ -76,23 +80,25 @@ Open `http://localhost:5174`. The Vite dev server proxies `/api/*` to `http://12
 ## MongoDB
 
 1. Create or use a database named in your URI (e.g. `.../pst_erp?...`).
-2. Seed the default company and users (from `backend/`):
+2. Seed the default company and the initial super-admin user (from `backend/`):
 
 ```bash
 cd backend
 npm run seed:company
+# Set DEFAULT_ADMIN_PASSWORD (and optionally DEFAULT_ADMIN_USERNAME) in backend/.env — see backend/.env.example
 npm run seed:users
 ```
 
-Primary seed users (after `seed:company`):
+`seed:users` **removes all existing users** and creates **one** `super_admin` account. Credentials come **only** from environment variables (`DEFAULT_ADMIN_PASSWORD`, etc.), not from source code. Use a strong password in production (`NODE_ENV=production` enforces minimum length and rejects common weak values).
 
-| Username | Role | Password (change in production) |
-|----------|------|--------------------------------|
-| `admin` | admin | `admin@pst2026` |
-| `accounts` | accounts_logistics | `accounts@pst2026` |
-| `purchase` | purchase_sales | `purchase@pst2026` |
+## Environment & secret management
 
-Emails are derived as `username@purestreamenergy.com`.
+- **Never commit** `.env`, `backend/.env`, `frontend/.env`, keys (`.pem`, `.key`, `.pfx`), or pasted connection strings with passwords. They are listed in `.gitignore`.
+- **Use templates only in git:** `.env.example`, `backend/.env.example`, `frontend/.env.example` — placeholders such as `your_mongodb_uri`, not real secrets.
+- **Production (e.g. Render):** set `MONGO_URI`, `JWT_SECRET`, and seed-related variables in the host’s **Environment** UI, not in the repo.
+- **Rotate immediately** if a MongoDB URI, JWT secret, AWS key, or password was ever committed, shared in chat, or exposed in a screenshot — regenerate Atlas credentials, new JWT secret, and new IAM keys as applicable.
+- **Check before push:** `npm run check:secrets` scans tracked files for common leak patterns (Mongo URIs with embedded credentials, PEM headers, `AKIA…` keys, stray `.env` files).
+- Optional **pre-commit:** see `docs/git-hooks.md` to run `check:secrets` before each commit.
 
 ## AWS / S3
 
@@ -116,6 +122,9 @@ npm run build
 
 # Backend syntax verification (see backend/package.json)
 npm --prefix backend run verify
+
+# Secret-pattern scan (tracked files only)
+npm run check:secrets
 
 # Both (from repo root)
 npm run verify
