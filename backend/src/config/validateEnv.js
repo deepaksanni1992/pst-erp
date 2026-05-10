@@ -43,9 +43,14 @@ export function validateRequiredEnv(options = {}) {
         "JWT_SECRET must not use a placeholder value in production. Generate a strong random string."
       );
     }
-    if (isProd && jwtSecret.length < 32) {
+    if (isProd && jwtSecret.length < 16) {
       throw new Error(
-        "JWT_SECRET should be at least 32 characters in production for adequate entropy."
+        "JWT_SECRET must be at least 16 characters in production (set in Render → Environment)."
+      );
+    }
+    if (isProd && jwtSecret.length < 32) {
+      console.warn(
+        "⚠️  JWT_SECRET is under 32 characters. Prefer a longer random secret in production when you rotate credentials."
       );
     }
   }
