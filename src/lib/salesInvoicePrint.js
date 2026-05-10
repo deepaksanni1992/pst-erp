@@ -212,11 +212,9 @@ export function buildTaxInvoiceHeaderHtml({
   company,
   invoiceNo,
   invoiceDateStr,
-  // Back-compat: callers may still pass `isMarivolt`. The new branded flag is `isPst`.
   isPst,
-  isMarivolt,
 }) {
-  const useBrandedShipper = Boolean(isPst ?? isMarivolt);
+  const useBrandedShipper = Boolean(isPst);
   const esc = escapePrintHtml;
   const custRef =
     [doc.customerReference, doc.linkedOANo, doc.linkedProformaNo, doc.linkedQuotationNo]

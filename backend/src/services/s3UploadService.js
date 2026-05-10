@@ -7,7 +7,7 @@ const DEFAULT_SIGNED_URL_TTL_SECONDS = 300;
 /**
  * Tenant-scoped key prefix. Every uploaded object is namespaced under
  * `${AWS_S3_KEY_PREFIX}<folder>/<yyyy>/<mm>/<file>` so PST ERP can
- * coexist with Marivolt ERP and any future tenants in the same bucket.
+ * share a bucket with other tenants when each uses a distinct key prefix.
  *
  * Default: "pst-erp/"  (Phase-16 / PST migration default)
  */

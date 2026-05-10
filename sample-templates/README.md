@@ -18,7 +18,7 @@ Use these workbooks from **Masters** in the app (or call the import APIs below).
 
 ## Regenerate `.xlsx` files
 
-From the `marivolt-erp` folder:
+From the `pst-erp` repository root:
 
 ```bash
 npm run generate:import-templates

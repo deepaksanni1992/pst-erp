@@ -7,7 +7,7 @@ export function isRunningUiOnLocalhost() {
   return h === "localhost" || h === "127.0.0.1" || h === "[::1]";
 }
 
-/** Vite dev (5173/5174) and preview (4173/4174) default ports — same-origin `/api` uses vite.config proxy. */
+/** Vite dev (5174 default in this repo; 5173 also allowed) and preview (4173/4174) — same-origin `/api` uses vite.config proxy to backend 5001. */
 function isViteDefaultDevOrPreviewPort() {
   if (typeof window === "undefined") return false;
   const port = String(window.location.port || "");

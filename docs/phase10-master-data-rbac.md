@@ -278,8 +278,8 @@ Patches applied:
 
 Manual company-isolation checklist:
 
-1. Log in to Marivolt and call `/api/auth/users`; confirm users are
-   limited to users assigned to Marivolt unless the user is
+1. Log in to PST ERP and call `/api/auth/users`; confirm users are
+   limited to users assigned to the active company unless the user is
    `super_admin`.
 2. Switch to Okeanos and repeat `/api/auth/users`; confirm the result
    follows Okeanos `allowedCompanies`.
@@ -417,20 +417,20 @@ Manual number-series checklist:
 Backend:
 
 ```
-cd marivolt-erp/backend
+cd pst-erp/backend
 npm run verify          # node --check across all controllers/services/routes
 ```
 
 Frontend:
 
 ```
-cd marivolt-erp
+cd pst-erp
 npm run build
 ```
 
 Manual:
 
-1. **Companies** — open `Settings → Companies`, edit Marivolt and
+1. **Companies** — open `Settings → Companies`, edit Purestream Energy FZE (or your PST company) and
    add `shortName`, `country`, `defaultCurrency`. Save and confirm
    the row reflects the new fields.
 2. **Branches** — create a branch (e.g. DXB / "Dubai HQ"). Confirm

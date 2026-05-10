@@ -408,8 +408,8 @@ function PurchaseOrderPreviewPanel({ doc, unsaved }) {
             </div>
           </div>
           <div className="text-right text-xs leading-relaxed text-slate-600 sm:max-w-[220px] sm:pt-1">
-            <p className="text-[28px] font-extrabold leading-none text-[#e85d3f]">MariVolt</p>
-            <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#1f4e79]">Marine Engine Spares</p>
+            <p className="text-[28px] font-extrabold leading-none text-[#e85d3f]">PST ERP</p>
+            <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-[#1f4e79]">{buyer.name}</p>
             <p className="mt-2 text-[11px] text-slate-600">{buyer.address}</p>
             <p className="mt-1">{buyer.phone}</p>
             <p>{buyer.email}</p>

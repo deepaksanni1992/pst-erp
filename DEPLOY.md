@@ -76,4 +76,4 @@ npm run dev:backend
 npm run dev
 ```
 
-The Vite dev server proxies `/api/*` → `http://127.0.0.1:5000`.
+The Vite dev server listens on **5174** (see `vite.config.js`) and proxies `/api/*` → `http://127.0.0.1:5001`.

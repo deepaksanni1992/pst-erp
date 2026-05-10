@@ -47,8 +47,7 @@ function pickFirst(...values) {
 
 /**
  * Resolve the branding bundle for a print/PDF view based on the active company.
- * Result is shaped to match the existing `orderAllocationPrint`/`Sales.jsx` consumers
- * (which historically used `isMarivolt` to switch on a "branded" layout).
+ * Result is shaped to match `orderAllocationPrint` / `Sales.jsx` consumers (branded PST/Okeanos layouts).
  *
  * @param {string} companyName  active company.name
  * @param {object} [company]    full company doc (logo/address/phone/email/website/trnNo)
@@ -105,7 +104,6 @@ export function getReportBranding(companyName, company = {}) {
 
   return {
     isPst,
-    isMarivolt: isPst, // back-compat alias for any consumer still using this name
     isOkeanos,
     useBrandedLayout,
     printLogo,

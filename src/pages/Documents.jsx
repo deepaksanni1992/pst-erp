@@ -345,7 +345,7 @@ export default function Documents() {
             <code className="rounded bg-amber-100/80 px-1">pst-erp/backend/.env</code> (remove UTF-8 BOM if the file was edited in Notepad). API base:{" "}
             <code className="rounded bg-amber-100/80 px-1">{API_BASE}</code>
             {isUsingSameOriginApiProxy()
-              ? " — UI uses the Vite proxy to your local API (port 5000); restart the backend after saving .env."
+              ? " — UI uses the Vite proxy to your local API (port 5001); restart the backend after saving .env."
               : " — on Render, set the same four keys in Environment and redeploy."}
           </p>
           {s3StatusQuery.data?.awsEnvPresence ? (

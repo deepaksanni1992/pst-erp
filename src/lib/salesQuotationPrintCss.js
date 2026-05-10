@@ -96,10 +96,6 @@ export const SALES_QUOTATION_STYLE_PRINT_CSS = `
           .header-right.is-pst {
             text-align: right;
           }
-          /* Backwards-compat alias kept for any cached HTML still emitting the old class. */
-          .header-right.is-marivolt {
-            text-align: right;
-          }
           .brand-title {
             margin: 0;
             line-height: 1;

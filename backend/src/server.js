@@ -35,7 +35,7 @@ import { isS3Configured } from "./config/s3.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 console.log("PST ERP — Purestream Energy FZE — backend starting…");
 console.log(

@@ -627,11 +627,7 @@ function escapeCsvValue(value) {
   return /[",\n]/.test(escaped) ? `"${escaped}"` : escaped;
 }
 
-/**
- * Thin wrapper around the centralized branding resolver in `lib/brandingDefaults.js`.
- * Returns `isMarivolt` as a back-compat alias for `isPst` so the existing destructures
- * in this file continue to work without churn.
- */
+/** Thin wrapper around the centralized branding resolver in `lib/brandingDefaults.js`. */
 function getReportBranding(companyNameRaw = "", company = {}) {
   return resolveReportBranding(companyNameRaw, company);
 }
@@ -643,7 +639,7 @@ function renderPrintWindow(data, autoPrint = false) {
   const rows = q.lines || [];
   const hasCompanyLogo = String(company.logo || "").trim().length > 0;
   const companyName = String(company.companyName || "").toLowerCase();
-  const { isMarivolt, useBrandedLayout, printLogo, companyDisplayName, companySubtitle, reportAddress, reportEmail, reportPhone, reportWebsite, reportFooterName, reportFooterSubline } = getReportBranding(companyName);
+  const { isPst, useBrandedLayout, printLogo, companyDisplayName, companySubtitle, reportAddress, reportEmail, reportPhone, reportWebsite, reportFooterName, reportFooterSubline } = getReportBranding(companyName);
   const html = `
     <html>
       <head>
@@ -652,7 +648,7 @@ function renderPrintWindow(data, autoPrint = false) {
 ${SALES_QUOTATION_STYLE_PRINT_CSS}
         </style>
       </head>
-      <body class="${isMarivolt ? "has-quote-terms" : ""}">
+      <body class="${isPst ? "has-quote-terms" : ""}">
         <div class="quote-header">
           <div class="quote-left">
             ${
@@ -743,7 +739,7 @@ ${SALES_QUOTATION_STYLE_PRINT_CSS}
           <div><b>Grand Total</b><b>${money(q.grandTotal)} ${q.currency || ""}</b></div>
         </div>
         ${
-          isMarivolt
+          isPst
             ? `<div class="quote-terms">Only Purestream Energy FZE terms and conditions are applicable.</div>`
             : ""
         }
@@ -788,7 +784,7 @@ function renderOrderAcknowledgementPrintWindow(payload, autoPrint = false) {
   const rows = oa.lines || [];
   const hasCompanyLogo = String(company.logo || "").trim().length > 0;
   const companyName = String(company.companyName || "").toLowerCase();
-  const { isMarivolt, useBrandedLayout, printLogo, companyDisplayName, companySubtitle, reportAddress, reportEmail, reportPhone, reportWebsite, reportFooterName, reportFooterSubline } = getReportBranding(companyName);
+  const { isPst, useBrandedLayout, printLogo, companyDisplayName, companySubtitle, reportAddress, reportEmail, reportPhone, reportWebsite, reportFooterName, reportFooterSubline } = getReportBranding(companyName);
   const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : "-");
 
   const html = `
@@ -799,7 +795,7 @@ function renderOrderAcknowledgementPrintWindow(payload, autoPrint = false) {
 ${SALES_QUOTATION_STYLE_PRINT_CSS}
         </style>
       </head>
-      <body class="${isMarivolt ? "has-quote-terms" : ""}">
+      <body class="${isPst ? "has-quote-terms" : ""}">
         <div class="header">
           <div class="header-left">
             ${
@@ -890,7 +886,7 @@ ${SALES_QUOTATION_STYLE_PRINT_CSS}
           <div><b>Grand Total</b><b>${money(oa.grandTotal)} ${oa.currency || ""}</b></div>
         </div>
         ${
-          isMarivolt
+          isPst
             ? `<div class="quote-terms">Only Purestream Energy FZE terms and conditions are applicable.</div>`
             : ""
         }
@@ -946,7 +942,7 @@ function renderFlowDocPrintWindow({
   const rows = doc?.lines || [];
   const hasCompanyLogo = String(company?.logo || company?.logoUrl || "").trim().length > 0;
   const companyName = String(company?.name || company?.companyName || "").toLowerCase();
-  const { isMarivolt, useBrandedLayout, printLogo, companyDisplayName, companySubtitle, reportAddress, reportEmail, reportPhone, reportWebsite, reportFooterName, reportFooterSubline } = getReportBranding(companyName);
+  const { isPst, useBrandedLayout, printLogo, companyDisplayName, companySubtitle, reportAddress, reportEmail, reportPhone, reportWebsite, reportFooterName, reportFooterSubline } = getReportBranding(companyName);
   const lineTableHeaderHtml = salesInvoiceLayout
     ? `
               <th style="width:6%;">Pos.</th>
@@ -1105,7 +1101,7 @@ function renderFlowDocPrintWindow({
         company,
         invoiceNo: docNoValue || doc?.invoiceNo || "",
         invoiceDateStr: invoiceDateFormatted,
-        isMarivolt,
+        isPst,
       })
     : "";
   const html = `
@@ -1116,7 +1112,7 @@ function renderFlowDocPrintWindow({
 ${SALES_QUOTATION_STYLE_PRINT_CSS}
         </style>
       </head>
-      <body class="${isMarivolt ? "has-quote-terms" : ""}">
+      <body class="${isPst ? "has-quote-terms" : ""}">
         ${salesInvoiceLayout ? taxInvoiceQuotationHeader + taxInvoiceGridHtml : flowDocClassicTop}
         <table>
           <thead>
@@ -1147,7 +1143,7 @@ ${SALES_QUOTATION_STYLE_PRINT_CSS}
             : ""
         }
         ${
-          isMarivolt
+          isPst
             ? `<div class="quote-terms">Only Purestream Energy FZE terms and conditions are applicable.</div>`
             : ""
         }
@@ -1194,7 +1190,7 @@ function renderPackingListPrintWindow({ rts, company, autoPrint = false }) {
   const totalBoxes = boxes.reduce((acc, b) => acc + (Number(b.count || 0) || 0), 0);
   const hasCompanyLogo = String(company?.logo || company?.logoUrl || "").trim().length > 0;
   const companyName = String(company?.name || company?.companyName || "").toLowerCase();
-  const { isMarivolt, useBrandedLayout, printLogo, companyDisplayName, companySubtitle, reportAddress, reportEmail, reportPhone, reportWebsite, reportFooterName, reportFooterSubline } = getReportBranding(companyName);
+  const { isPst, useBrandedLayout, printLogo, companyDisplayName, companySubtitle, reportAddress, reportEmail, reportPhone, reportWebsite, reportFooterName, reportFooterSubline } = getReportBranding(companyName);
   const html = `
     <html>
       <head>
@@ -1203,7 +1199,7 @@ function renderPackingListPrintWindow({ rts, company, autoPrint = false }) {
 ${SALES_QUOTATION_STYLE_PRINT_CSS}
         </style>
       </head>
-      <body class="${isMarivolt ? "has-quote-terms" : ""}">
+      <body class="${isPst ? "has-quote-terms" : ""}">
         <div class="header">
           <div class="header-left">
             ${
@@ -1309,7 +1305,7 @@ ${SALES_QUOTATION_STYLE_PRINT_CSS}
           <div><b>Total Boxes</b><b>${Number(totalBoxes || rts?.packingDetails?.boxCount || 0)}</b></div>
         </div>
         ${
-          isMarivolt
+          isPst
             ? `<div class="quote-terms">Only Purestream Energy FZE terms and conditions are applicable.</div>`
             : ""
         }

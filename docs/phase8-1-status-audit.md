@@ -37,7 +37,7 @@ const canon = canonicalStatus(DOC_TYPES.SALES_INVOICE, "PARTIALLY_PAID"); // "PA
 
 `assertTransition` throws a structured error that the controller
 returns as a 409 with `code: INVALID_TRANSITION`. The frontend's
-axios interceptor (`marivolt-erp/src/lib/api.js`) preserves the code
+axios interceptor (`pst-erp/src/lib/api.js`) preserves the code
 and details so toasts/banners can be friendly.
 
 ### 2. Wired transition rules
